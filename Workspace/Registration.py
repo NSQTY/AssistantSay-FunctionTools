@@ -67,20 +67,37 @@ def LoadBlueprintModule(WorksPath: str, Module: str):
     return module
 
 
+def _blueprint_names() -> set:
+    """当前应用实例上已挂载的蓝图名(属性即蓝图: CBP.xxx 挂到 AR 上)"""
+    return {name for name, obj in vars(System.FlaskApp.AR).items()
+            if isinstance(obj, System.Blueprint)}
+
+
 def LoadAllWorks():
-    """启动时: 加载已启用且必备文件齐全的工作空间蓝图模块
+    """启动时: 加载已启用且必备文件齐全的工作空间蓝图模块, 并把条目创建的蓝图名回填注册表
 
     Flask 应用在第一次请求后冻结, 运行期不能注册新蓝图,
     所以外化蓝图必须在此阶段(启动时)加载; 请求只负责登记/状态/移除。
+    蓝图名回填: 加载前后对比 AR 上蓝图集合, 差值 = 本条目创建的蓝图 → 写回条目(blueprint_names),
+    供消费端(如 webui)把蓝图关联回工作空间条目(区分官方/外部)。
     """
-    for entry in LoadWorks():
+    works = LoadWorks()
+    changed = False
+    for entry in works:
         if not entry.get('enabled', True):
             continue                          # 关闭状态的插件跳过
         try:
             CheckRequiredFiles(entry['WorksPath'])
+            before = _blueprint_names()
             LoadBlueprintModule(entry['WorksPath'], entry['Module'])
+            created = sorted(_blueprint_names() - before)
+            if created and set(entry.get('blueprint_names', [])) != set(created):
+                entry['blueprint_names'] = created
+                changed = True
         except (FileNotFoundError, KeyError):
             continue
+    if changed:
+        SaveWorks(works)
 
 
 # 名字合一: 蓝图名(包名 Workspace) == url_prefix
@@ -96,7 +113,7 @@ def RegistrationWorks(WorksPath: Annotated[str, '第三方插件工作空间目�
     '''登记第三方工作空间: 先校验必备文件(README.md 必写), 通过才写入注册表'''
     CheckRequiredFiles(WorksPath)             # ← 必备文件校验(结构契约)
     works = LoadWorks()
-    entry = {'WorksPath': WorksPath, 'Module': Module, 'enabled': True}
+    entry = {'WorksPath': WorksPath, 'Module': Module, 'enabled': True, 'blueprint_names': []}
     if FindEntry(works, WorksPath) is None:
         works.append(entry)
         SaveWorks(works)
