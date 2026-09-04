@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AssistantSay · 系统看板</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.1.1/css/bootstrap.min.css" rel="stylesheet">
+<style>
+  body { background:#f5f6f8; }
+  .muted { color:#6c757d; font-size:.85em; }
+  /* 顶部收藏栏: 横向摊开收藏组, 每组一个下拉 */
+  .favbar { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+  details.favdrop { position:relative; display:inline-block; }
+  details.favdrop > summary { cursor:pointer; list-style:none; background:#fff; border:1px solid #dee2e6;
+    border-radius:.375rem; padding:.3rem .7rem; font-weight:500; user-select:none; }
+  details.favdrop > summary::-webkit-details-marker { display:none; }
+  details.favdrop[open] > summary { border-color:#0d6efd; color:#0d6efd; }
+  details.favdrop .menu { position:absolute; left:0; top:100%; z-index:1200; margin-top:2px; min-width:240px;
+    background:#fff; border:1px solid #dee2e6; border-radius:.375rem; box-shadow:0 6px 18px rgba(0,0,0,.12);
+    padding:.4rem .5rem; max-height:60vh; overflow:auto; }
+  .favdrop .menu a { display:block; padding:.15rem .3rem; text-decoration:none; color:#212529; border-radius:.25rem; }
+  .favdrop .menu a:hover { background:#e9f2ff; }
+  .favdrop .child { margin-left:.5rem; border-left:2px solid #dee2e6; padding-left:.4rem; }
+  /* 主区 Tab */
+  .tabs { display:flex; gap:.25rem; border-bottom:2px solid #dee2e6; margin-bottom:.75rem; }
+  .tabs button { border:1px solid #dee2e6; border-bottom:none; background:#fff; padding:.35rem 1.1rem;
+    border-radius:.375rem .375rem 0 0; cursor:pointer; }
+  .tabs button.active { background:#0d6efd; color:#fff; border-color:#0d6efd; }
+  .tabpane { display:none; }
+  .tabpane.active { display:block; }
+  .subtabs { display:flex; flex-wrap:wrap; gap:.25rem; margin-bottom:.6rem; }
+  .subtabs button { border:1px solid #dee2e6; background:#fff; border-radius:1rem; padding:.15rem .8rem; font-size:.9em; cursor:pointer; }
+  .subtabs button.active { background:#198754; border-color:#198754; color:#fff; }
+  details.plug-card { border:1px solid #dee2e6; border-radius:.375rem; margin-bottom:.5rem; background:#fff; }
+  details.plug-card > summary { padding:.6rem .8rem; cursor:pointer; font-weight:500; list-style:none; }
+  details.plug-card > summary::-webkit-details-marker { display:none; }
+  details.plug-card > summary::before { content:'▸ '; }
+  details.plug-card[open] > summary::before { content:'▾ '; }
+  details.plug-card[open] > summary { border-bottom:1px solid #dee2e6; }
+  details.api-card > summary { cursor:pointer; list-style:none; }
+  details.api-card > summary::-webkit-details-marker { display:none; }
+  details.api-card > summary::before { content:'▸ '; }
+  details.api-card[open] > summary::before { content:'▾ '; }
+  /* 模态框 */
+  .ovl { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1500; display:none;
+    align-items:center; justify-content:center; padding:12px; }
+  .dlg { background:#fff; border-radius:.5rem; max-width:720px; width:100%; max-height:82vh;
+    display:flex; flex-direction:column; box-shadow:0 10px 40px rgba(0,0,0,.3); }
+  .dlg-head { display:flex; justify-content:space-between; align-items:center; padding:.6rem .9rem; border-bottom:1px solid #dee2e6; }
+  .dlg-body { padding:.9rem; overflow:auto; }
+  .dlg-foot { display:flex; gap:.5rem; justify-content:flex-end; padding:.7rem .9rem; border-top:1px solid #dee2e6; }
+  .group-box { border-left:3px solid #0d6efd; margin:.25rem 0 .25rem .5rem; padding-left:.5rem; }
+  #dbgResult { white-space:pre-wrap; word-break:break-all; }
+</style>
+</head>
+<body>
+<div class="container py-3">
+
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h4 class="mb-0">AssistantSay · 系统看板 <span class="muted">— 能力目录 + 收藏夹</span></h4>
+    <button class="btn btn-outline-dark btn-sm" onclick="overloadSystem()">⟳ 重载系统</button>
+  </div>
+
+  <!-- 顶部收藏栏: 横向摊开所有收藏组(360 收藏夹式); 管理在模态框里 -->
+  <div class="card mb-2">
+    <div class="card-body py-2">
+      <div class="favbar" id="favBar">
+        <span class="muted">📌 收藏夹:</span>
+        <span id="favItems"><span class="muted">加载中…</span></span>
+        <span class="ms-auto">
+          <button class="btn btn-sm btn-outline-primary" onclick="addTopGroup()">+ 组</button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="openFavManage()">管理收藏夹</button>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主体: Tab 切换 插件 / API 列表 -->
+  <div class="tabs">
+    <button id="tab-plugin-btn" class="active" onclick="switchTab('plugin')">🧩 插件</button>
+    <button id="tab-api-btn" onclick="switchTab('api')">🔌 API 列表</button>
+  </div>
+
+  <div id="pane-plugin" class="tabpane active">
+    <div class="card">
+      <div class="card-header">🧩 插件（启用/停用/卸载 = Workspace 管理的外部插件；官方插件经 init 装配，无运行期启停）</div>
+      <div class="card-body" id="pluginRoot"><span class="muted">加载中…</span></div>
+    </div>
+  </div>
+
+  <div id="pane-api" class="tabpane">
+    <div class="card">
+      <div class="card-header">🔌 API 列表（横向蓝图 Tab → 蓝图信息 + 函数折叠；展开自证）</div>
+      <div class="card-body">
+        <div class="subtabs" id="bpSubTabs"></div>
+        <div id="bpInfo" class="mb-2"></div>
+        <div id="apiListRoot"><span class="muted">加载中…</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 收藏夹管理模态框 -->
+<div id="favManageOvl" class="ovl" onclick="if (event.target === this) closeFavManage()">
+  <div class="dlg">
+    <div class="dlg-head"><b>📌 管理收藏夹（嵌套组）</b>
+      <button class="btn btn-sm btn-outline-secondary" onclick="closeFavManage()">✕</button></div>
+    <div class="dlg-body" id="favManageRoot"><span class="muted">加载中…</span></div>
+    <div class="dlg-foot">
+      <button class="btn btn-sm btn-outline-primary" onclick="addTopGroup()">+ 新建顶层组</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="closeFavManage()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 调试 API 模态框 -->
+<div id="dbgOverlay" class="ovl" onclick="if (event.target === this) closeDebug()">
+  <div class="dlg">
+    <div class="dlg-head"><b>⚡ 调试 API</b>
+      <button class="btn btn-sm btn-outline-secondary" onclick="closeDebug()">✕</button></div>
+    <div class="dlg-body">
+      <div id="dbgMeta" class="muted mb-2"></div>
+      <div id="dbgParams"></div>
+      <div id="dbgResult"></div>
+    </div>
+    <div class="dlg-foot">
+      <button class="btn btn-sm btn-success" onclick="sendDebug()">发送 (POST)</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="closeDebug()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ================= 状态 & API 采集 =================
+let state = { bps: {}, routes: {}, favs: [], works: null, activeBp: null, bpInfoCache: {}, bpInfoLoading: {} };
+
+async function apiGet(path) {
+  const r = await fetch(path);
+  if (!r.ok) throw new Error('GET ' + path + ' -> ' + r.status);
+  return r.json();
+}
+async function apiPost(path, body) {
+  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+  const j = await r.json();
+  if (j && 'error' in j) throw new Error(j.error);
+  return j;
+}
+const result = (j) => (j && 'result' in j) ? j.result : j;
+const RESERVED_INFO = ['蓝图信息', 'api信息', '自定义信息'];
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function flattenGroups(groups, prefix, out) {
+  for (const g of groups || []) {
+    const label = prefix ? prefix + ' / ' + g.name : g.name;
+    out.push({ id: g.id, label });
+    flattenGroups(g.groups, label, out);
+  }
+  return out;
+}
+function findGroup(groups, gid) {
+  for (const g of groups || []) {
+    if (g.id === gid) return g;
+    const hit = findGroup(g.groups, gid);
+    if (hit) return hit;
+  }
+  return null;
+}
+function removeGroupTree(groups, gid) {
+  for (let i = 0; i < (groups || []).length; i++) {
+    if (groups[i].id === gid) { groups.splice(i, 1); return true; }
+    if (removeGroupTree(groups[i].groups, gid)) return true;
+  }
+  return false;
+}
+
+// ================= 加载 =================
+async function refreshAll() {
+  try { state.bps = await apiGet('/Documentation/get_blueprints'); } catch (e) { state.bps = { _err: e.message }; }
+  try { state.routes = result(await apiPost('/Documentation/get_blueprint_routes', {})) || {}; } catch (e) { state.routes = { _err: e.message }; }
+  try { state.works = result(await apiPost('/Workspace/WorksList', {})) || []; } catch (e) { state.works = null; }
+  try { state.favs = result(await apiPost('/webui/favorites', {})) || []; } catch (e) { state.favs = []; }
+  renderFavBar();
+  renderPluginManage();
+  renderApiList();
+}
+
+// ================= 收藏夹: 顶部横向栏 =================
+function renderFavBar() {
+  const el = document.getElementById('favItems');
+  const groups = state.favs || [];
+  if (!groups.length) { el.innerHTML = '<span class="muted">暂无收藏组（点右上“+ 组”或到插件区给页面收藏）</span>'; return; }
+  el.innerHTML = groups.map(favDrop).join('');
+  // 点击组名链接新标签打开
+  el.querySelectorAll('a.fav-go').forEach((a) => a.addEventListener('click', (e) => e.stopPropagation()));
+}
+function favDrop(g) {
+  const items = (g.items || []).map((it) =>
+    `<a class="fav-go" href="${esc(it.url)}" target="_blank">${it.is_page ? '<span class="badge bg-danger">页</span> ' : ''}${esc(it.bp)} / ${esc(it.fn)}</a>`).join('');
+  const kids = (g.groups || []).length
+    ? `<div class="child">${(g.groups || []).map(favDrop).join('')}</div>` : '';
+  return `<details class="favdrop"><summary>${esc(g.name)}</summary><div class="menu">${items || '<span class="muted">(空组)</span>'}${kids}</div></details>`;
+}
+
+// ================= 收藏夹管理(模态框) =================
+function openFavManage() {
+  document.getElementById('favManageRoot').innerHTML = renderManageTree(state.favs);
+  document.getElementById('favManageOvl').style.display = 'flex';
+}
+function closeFavManage() { document.getElementById('favManageOvl').style.display = 'none'; }
+function renderManageTree(groups) {
+  if (!groups || !groups.length) return '<span class="muted">暂无收藏组 — 点"新建顶层组"开始</span>';
+  return groups.map((g) => {
+    const items = (g.items || []).map((it) =>
+      `<li class="fav-item">${it.is_page ? '<span class="badge bg-danger">页</span> ' : ''}` +
+      `<a href="${esc(it.url)}" target="_blank">${esc(it.bp)} / ${esc(it.fn)}</a> ` +
+      `<button class="btn btn-sm btn-outline-danger py-0" onclick="removeItem('${g.id}','${esc(it.url)}')">✕</button></li>`).join('');
+    const kids = (g.groups || []).length ? renderManageTree(g.groups) : '';
+    return `<div class="group-box"><b>${esc(g.name)}</b>
+      <button class="btn btn-sm btn-outline-secondary py-0 ms-2" onclick="addSubGroup('${g.id}')">+ 子组</button>
+      <button class="btn btn-sm btn-outline-secondary py-0" onclick="renameGroup('${g.id}')">✎ 改名</button>
+      <button class="btn btn-sm btn-outline-danger py-0" onclick="removeGroup('${g.id}')">🗑</button>
+      ${items ? '<ul class="mb-0 mt-1">' + items + '</ul>' : ''}${kids}</div>`;
+  }).join('');
+}
+function favGroupOptions() {
+  const flat = flattenGroups(state.favs, '', []);
+  if (!flat.length) return null;
+  return flat.map((f) => `<option value="${f.id}">${esc(f.label)}</option>`).join('');
+}
+async function addTopGroup() {
+  const name = prompt('新顶层组名:');
+  if (!name) return;
+  try { await apiPost('/webui/group_add', { name }); refreshAll(); } catch (e) { alert(e.message); }
+}
+async function addSubGroup(parentId) {
+  const name = prompt('子组名:');
+  if (!name) return;
+  try { await apiPost('/webui/group_add', { name, parent_id: parentId }); refreshAll(); } catch (e) { alert(e.message); }
+}
+async function renameGroup(id) {
+  const name = prompt('新组名:');
+  if (!name) return;
+  try { await apiPost('/webui/group_rename', { id, name }); refreshAll(); } catch (e) { alert(e.message); }
+}
+async function removeGroup(id) {
+  if (!confirm('删除该组（含子组与条目）?')) return;
+  try { await apiPost('/webui/group_remove', { id }); refreshAll(); } catch (e) { alert(e.message); }
+}
+async function removeItem(groupId, url) {
+  try { await apiPost('/webui/item_remove', { group_id: groupId, url }); refreshAll(); } catch (e) { alert(e.message); }
+}
+async function favFromPlugin(bp, fn, url) {
+  const opts = favGroupOptions();
+  if (opts === null) { alert('请先新建一个收藏组（收藏栏“+ 组”）'); return; }
+  const gid = prompt('收藏到哪个组？(输入组 id)\n' + opts.replace(/<option value="([^"]+)">([^<]+)<\/option>/g, '$1 - $2'));
+  if (!gid) return;
+  try { await apiPost('/webui/item_add', { group_id: gid, bp, fn, url, is_page: true }); refreshAll(); }
+  catch (e) { alert('收藏失败: ' + e.message); }
+}
+
+// ================= 插件 tab: 名称 + 启/停/卸(仅 Workspace 管理的外部插件) =================
+function renderPluginManage() {
+  const el = document.getElementById('pluginRoot');
+  const bps = state.bps;
+  if (bps._err) { el.innerHTML = '<span class="text-danger">数据获取失败: ' + esc(bps._err) + '</span>'; return; }
+  const bpNames = Object.keys(bps).filter((n) => n !== '_err');
+  const entries = state.works || [];
+  const managed = new Set();
+  const rows = [];
+  // 1) Workspace 管理的外部插件(含已关闭/未加载的条目)
+  entries.forEach((w) => {
+    const bns = w.blueprint_names || [];
+    bns.forEach((n) => managed.add(n));
+    const display = bns[0] || (w.Module || '').replace(/\.py$/i, '') || w.WorksPath;
+    rows.push(`<div class="d-flex align-items-center gap-2 border-bottom py-1">
+      <b>${esc(display)}</b>
+      <span class="badge bg-warning text-dark">外部</span>
+      ${w.enabled ? '<span class="badge bg-success">启用</span>' : '<span class="badge bg-secondary">关闭</span>'}
+      <span class="muted">${esc(w.WorksPath)}</span>
+      <span class="ms-auto">
+        ${w.enabled
+          ? `<button class="btn btn-sm btn-outline-danger py-0" onclick="wsToggle('${esc(w.WorksPath)}', false)">停用</button>`
+          : `<button class="btn btn-sm btn-outline-success py-0" onclick="wsToggle('${esc(w.WorksPath)}', true)">启用</button>`}
+        <button class="btn btn-sm btn-outline-dark py-0 ms-1" onclick="wsUninstall('${esc(w.WorksPath)}')">卸载</button>
+      </span></div>`);
+  });
+  // 2) 官方/系统蓝图(不在任何工作空间条目内): 只读
+  bpNames.filter((n) => !managed.has(n)).sort().forEach((n) => {
+    rows.push(`<div class="d-flex align-items-center gap-2 border-bottom py-1">
+      <b>${esc(n)}</b>
+      <span class="badge bg-info text-dark">官方</span>
+      <span class="muted ms-auto">init 装配 · 无运行期启停(改 __init__ + 重载)</span></div>`);
+  });
+  el.innerHTML = rows.length
+    ? rows.join('')
+    : (bpNames.length ? '' : '<span class="muted">暂无蓝图</span>') +
+      '<div class="muted pt-2">提示：外部插件登记/启停/卸载走 Workspace API；官方插件只能改 FunctionTools/__init__ 装配。</div>';
+}
+async function wsToggle(WorksPath, enabled) {
+  try {
+    const r = await apiPost('/Workspace/WorksStatus', { WorksPath, Enabled: enabled });
+    alert('已提交: ' + (r.result && r.result.effect ? r.result.effect : '重载后生效') + '（点右上 ⟳ 生效）');
+    refreshAll();
+  } catch (e) { alert('操作失败: ' + e.message); }
+}
+async function wsUninstall(WorksPath) {
+  if (!confirm('卸载后该插件将不再加载。\n需要恢复请重新登记（Workspace 注册）或改 init 装配——确定卸载？')) return;
+  try {
+    await apiPost('/Workspace/RemoveWorks', { WorksPath });
+    alert('已卸载，重载后生效（点右上 ⟳）。重新安装 = 重新登记或改 init 装配。');
+    refreshAll();
+  } catch (e) { alert('卸载失败: ' + e.message); }
+}
+
+// ================= API 列表 tab: 横向蓝图子Tab → 蓝图信息 + 函数折叠 =================
+function renderApiList() {
+  const bps = state.bps;
+  if (bps._err) { document.getElementById('bpSubTabs').innerHTML = ''; return; }
+  const names = Object.keys(bps).filter((n) => n !== '_err').sort();
+  if (!state.activeBp || !names.includes(state.activeBp)) state.activeBp = names[0];
+  document.getElementById('bpSubTabs').innerHTML = names.map((n) =>
+    `<button class="${n === state.activeBp ? 'active' : ''}" onclick="switchBp('${esc(n)}')">${esc(n)}</button>`).join('');
+  renderBpPane();
+}
+function renderBpPane() {
+  const bp = state.activeBp;
+  const infoEl = document.getElementById('bpInfo');
+  const root = document.getElementById('apiListRoot');
+  if (!bp) { infoEl.innerHTML = ''; root.innerHTML = '<span class="muted">暂无蓝图</span>'; return; }
+  const entries = state.works || [];
+  const src = entries.filter((w) => (w.blueprint_names || []).includes(bp));
+  const isExt = src.length > 0;
+  const srcTxt = isExt ? ('外部(Workspace: ' + esc(src[0].WorksPath) + ')') : '官方(init 装配)';
+  const fns = (state.routes[bp] || []).slice().sort((a, b) => a.localeCompare(b));
+  infoEl.innerHTML = `<div class="border rounded p-2 bg-white"><b>🧩 ${esc(bp)}</b>
+    <span class="badge ${isExt ? 'bg-warning text-dark' : 'bg-info text-dark'} ms-1">${isExt ? '外部' : '官方'}</span>
+    <span class="muted ms-2">前缀 /${esc(bp)} · API ${fns.length} 个 · ${srcTxt}</span>
+    <div id="bpInfoDetail" class="mt-1 muted">蓝图信息: 读取中…</div></div>`;
+  root.innerHTML = fns.length
+    ? fns.map((fn) => apiRow(bp, fn)).join('')
+    : '<span class="muted">（无路由）</span>';
+  bindProbes();
+  loadBpInfo(bp);
+}
+// 采收该蓝图真实的 蓝图信息(V2 保留键): 顺序探测其 API 的 GET, 命中即止
+async function loadBpInfo(bp) {
+  if (state.bpInfoCache[bp] !== undefined || state.bpInfoLoading[bp]) { renderBpInfoBox(bp); return; }
+  state.bpInfoLoading[bp] = true;
+  renderBpInfoBox(bp);
+  const fns = (state.routes[bp] || []).slice().sort((a, b) => a.localeCompare(b));
+  let info = null;
+  for (const fn of fns) {
+    try {
+      const resp = await fetch('/' + bp + '/' + fn);
+      const ct = (resp.headers.get('content-type') || '').toLowerCase();
+      if (ct.includes('text/html')) continue;                       // 页面跳过
+      const j = await resp.json();
+      const c = (j && 'result' in j) ? j.result : j;
+      if (c && typeof c === 'object' && c['蓝图信息'] && typeof c['蓝图信息'] === 'object') { info = c['蓝图信息']; break; }
+    } catch (e) { /* 探测下一个 */ }
+  }
+  state.bpInfoCache[bp] = info;
+  state.bpInfoLoading[bp] = false;
+  renderBpInfoBox(bp);
+}
+function renderBpInfoBox(bp) {
+  const box = document.getElementById('bpInfoDetail');
+  if (!box) return;
+  if (state.bpInfoLoading[bp]) { box.innerHTML = '<span class="muted">蓝图信息: 读取中…</span>'; return; }
+  const info = state.bpInfoCache[bp];
+  box.innerHTML = info
+    ? `<b>蓝图信息</b><pre class="mb-0 p-2 bg-light">${esc(JSON.stringify(info, null, 2))}</pre>`
+    : '<span class="muted">（该蓝图未提供蓝图信息——需用 V2 校验器并在蓝图/函数上声明）</span>';
+}
+function switchBp(name) {
+  state.activeBp = name;
+  document.querySelectorAll('#bpSubTabs button').forEach((b) => b.classList.toggle('active', b.textContent === name));
+  renderBpPane();
+}
+
+// ================= Tab =================
+function switchTab(which) {
+  document.getElementById('tab-plugin-btn').classList.toggle('active', which === 'plugin');
+  document.getElementById('tab-api-btn').classList.toggle('active', which === 'api');
+  document.getElementById('pane-plugin').classList.toggle('active', which === 'plugin');
+  document.getElementById('pane-api').classList.toggle('active', which === 'api');
+  if (which === 'api') bindProbes();   // 每次切到 API 列表时重新绑定(内容可能已重建)
+}
+
+// ================= 插件 / API 行渲染(共享) =================
+function apiRow(bp, fn) {
+  const url = '/' + bp + '/' + fn;
+  return `<details class="api-card" data-url="${esc(url)}" data-bp="${esc(bp)}" data-fn="${esc(fn)}">
+    <summary class="d-flex align-items-center gap-2 py-1 border-bottom">
+      <b>${esc(fn)}</b><span class="muted">${esc(url)}</span>
+    </summary>
+    <div class="api-detail px-3 py-2 muted">展开探测(页面或契约+信息)…</div>
+  </details>`;
+}
+function bindProbes() {
+  document.querySelectorAll('#apiListRoot details.api-card').forEach((d) => {
+    if (!d.dataset.bound) {
+      d.dataset.bound = '1';
+      d.addEventListener('toggle', () => { if (d.open && !d.dataset.loaded) probeApi(d); });
+    }
+  });
+}
+
+// ================= 响应自证探测 =================
+async function probeApi(details) {
+  details.dataset.loaded = '1';
+  const box = details.querySelector('.api-detail');
+  const url = details.dataset.url, bp = details.dataset.bp, fn = details.dataset.fn;
+  box.textContent = '探测…';
+  let resp;
+  try { resp = await fetch(url); } catch (e) { box.textContent = '探测失败: ' + e.message; return; }
+  const ct = (resp.headers.get('content-type') || '').toLowerCase();
+  if (ct.includes('text/html')) {
+    box.innerHTML = `<div><span class="badge bg-danger">页面 HTML</span>（GET 返回 HTML）
+      <a class="btn btn-sm btn-outline-primary py-0 ms-2" href="${esc(url)}" target="_blank">前往页面</a>
+      <button class="btn btn-sm btn-outline-warning py-0 ms-1" onclick="favFromPlugin('${bp}','${fn}','${url}')">收藏</button></div>`;
+    return;
+  }
+  let j;
+  try { j = await resp.json(); } catch (e) { box.textContent = '非 HTML/JSON 响应 (HTTP ' + resp.status + ')'; return; }
+  if (j && 'error' in j) { box.innerHTML = '<span class="text-danger">错误: ' + esc(j.error) + '</span>'; return; }
+  const c = (j && 'result' in j) ? j.result : j;
+  box.innerHTML = renderContractDetail(c, j, bp, fn, url);
+}
+
+function renderContractDetail(c, raw, bp, fn, url) {
+  if (!c || typeof c !== 'object') { return '<pre class="mb-0">' + esc(JSON.stringify(raw, null, 2)) + '</pre>'; }
+  const paramKeys = Object.keys(c).filter((k) => k !== 'return' && !RESERVED_INFO.includes(k));
+  const paramRows = paramKeys.filter((k) => c[k] && typeof c[k] === 'object' && 'type' in c[k]).map((k) => {
+    const p = c[k] || {};
+    const desc = Array.isArray(p.description) ? p.description.join(' / ') : (p.description || '');
+    return `<tr><td><code>${esc(k)}</code></td><td>${esc(p.type || '?')}</td><td>${esc(desc)}</td></tr>`;
+  }).join('');
+  const ret = c['return'];
+  const retHtml = ret && typeof ret === 'object'
+    ? `<div class="mt-2">返回值: <code>${esc(ret.type || '?')}</code> ${esc(Array.isArray(ret.description) ? ret.description.join(' / ') : (ret.description || ''))}</div>` : '';
+  const infoHtml = RESERVED_INFO.filter((k) => c[k] && typeof c[k] === 'object')
+    .map((k) => `<div class="mt-2"><b>${esc(k)}</b><pre class="mb-0 p-2 bg-light">${esc(JSON.stringify(c[k], null, 2))}</pre></div>`).join('');
+  if (!paramRows && !retHtml && !infoHtml) { return '<pre class="mb-0">' + esc(JSON.stringify(c, null, 2)) + '</pre>'; }
+  return (paramRows
+    ? `<table class="table table-sm table-striped mb-0"><thead><tr><th>参数</th><th>类型</th><th>描述</th></tr></thead><tbody>${paramRows}</tbody></table>`
+    : '<span class="muted">（无参数）</span>')
+    + retHtml + infoHtml
+    + `<div class="mt-2"><button class="btn btn-sm btn-outline-success py-0" onclick="openDebug('${bp}','${fn}','${url}')">⚡ 调试 (POST)</button></div>`;
+}
+
+// ================= 调试 API =================
+let dbgCtx = null;
+function openDebug(bp, fn, url) {
+  dbgCtx = { url, params: [] };
+  document.getElementById('dbgMeta').innerHTML = `<b>${esc(bp)} / ${esc(fn)}</b><br>POST <code>${esc(url)}</code>`;
+  const box = document.getElementById('dbgParams');
+  const res = document.getElementById('dbgResult');
+  box.innerHTML = '<span class="muted">加载契约…</span>';
+  res.innerHTML = '';
+  document.getElementById('dbgOverlay').style.display = 'flex';
+  (async () => {
+    try {
+      const resp = await fetch(url);
+      const ct = (resp.headers.get('content-type') || '').toLowerCase();
+      if (ct.includes('text/html')) {
+        box.innerHTML = `<span class="text-warning">该函数是页面(HTML)——不能 POST 调试; 请直接访问:
+          <a href="${esc(url)}" target="_blank">前往页面</a></span>`;
+        return;
+      }
+      const j = await resp.json();
+      const c = (j && 'result' in j) ? j.result : j;
+      if (!c || typeof c !== 'object') { box.innerHTML = '<span class="text-danger">无法解析契约</span>'; return; }
+      const names = Object.keys(c).filter((k) => k !== 'return' && !RESERVED_INFO.includes(k));
+      if (!names.length) { box.innerHTML = '<span class="muted">（无参数，直接发送即可）</span>'; return; }
+      dbgCtx.params = names.map((k) => ({
+        name: k,
+        type: (c[k] && c[k].type) || 'str',
+        desc: Array.isArray(c[k] && c[k].description) ? c[k].description.join(' / ') : ((c[k] && c[k].description) || '')
+      }));
+      box.innerHTML = dbgCtx.params.map((p, i) => {
+        const t = (p.type || '').toLowerCase();
+        let ctrl;
+        if (t === 'bool') ctrl = `<select id="dbg-in-${i}"><option value="">（不填）</option><option value="true">true</option><option value="false">false</option></select>`;
+        else if (t === 'list' || t === 'dict') ctrl = `<textarea id="dbg-in-${i}" rows="2" placeholder='JSON, 如 ${t === 'list' ? '[1,2]' : '{"k":"v"}'}'></textarea>`;
+        else if (t === 'int' || t === 'float' || t === 'number') ctrl = `<input id="dbg-in-${i}" type="text" placeholder="数字">`;
+        else ctrl = `<input id="dbg-in-${i}" type="text">`;
+        return `<div class="dbg-param"><label><code>${esc(p.name)}</code> <span class="muted">(${esc(p.type)})</span> — ${esc(p.desc)}</label>${ctrl}</div>`;
+      }).join('');
+    } catch (e) { box.innerHTML = '<span class="text-danger">契约获取失败: ' + esc(e.message) + '</span>'; }
+  })();
+}
+async function sendDebug() {
+  if (!dbgCtx) return;
+  const body = {};
+  (dbgCtx.params || []).forEach((p, i) => {
+    const el = document.getElementById('dbg-in-' + i);
+    if (!el) return;
+    const raw = el.value;
+    if (raw === '' || raw === null) return;
+    const t = (p.type || '').toLowerCase();
+    let v = raw;
+    if (t === 'bool') v = raw === 'true';
+    else if (t === 'int') v = parseInt(raw, 10);
+    else if (t === 'float' || t === 'number') v = Number(raw);
+    else if (t === 'list' || t === 'dict') { try { v = JSON.parse(raw); } catch (e) {} }
+    body[p.name] = v;
+  });
+  const res = document.getElementById('dbgResult');
+  res.innerHTML = '<span class="muted">发送中…</span>';
+  try {
+    const r = await fetch(dbgCtx.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const txt = await r.text();
+    let out;
+    try { out = JSON.stringify(JSON.parse(txt), null, 2); } catch (e) { out = txt; }
+    const bad = !r.ok || /"error"\s*:/.test(txt);
+    res.innerHTML = `<div class="${bad ? 'text-danger' : ''}"><span class="muted">HTTP ${r.status}</span>\n${esc(out)}</div>`;
+  } catch (e) { res.innerHTML = '<span class="text-danger">请求失败: ' + esc(e.message) + '</span>'; }
+}
+function closeDebug() { document.getElementById('dbgOverlay').style.display = 'none'; dbgCtx = null; }
+
+// ================= 重载系统 =================
+async function overloadSystem() {
+  const reason = prompt('重载原因（写入 .reload.log 审计）:', 'webui 手动重载');
+  if (reason === null) return;
+  try {
+    const r = await fetch('/overload?reason=' + encodeURIComponent(reason), { method: 'POST' });
+    if (!r.ok) { alert('重载触发失败: HTTP ' + r.status); return; }
+  } catch (e) {}
+  const btn = document.querySelector('button[onclick="overloadSystem()"]');
+  for (let i = 0; i < 150; i++) {
+    if (btn) { btn.disabled = true; btn.textContent = '⟳ 重启中… ' + Math.floor((150 - i) / 2) + 's'; }
+    await new Promise((res) => setTimeout(res, 500));
+    try { const probe = await fetch('/webui/home', { method: 'GET' }); if (probe.ok) { location.reload(); return; } } catch (e) {}
+  }
+  alert('服务 75 秒内未恢复——若控制台无新启动日志，请手动重启');
+  if (btn) { btn.disabled = false; btn.textContent = '⟳ 重载系统'; }
+}
+
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeDebug(); closeFavManage(); } });
+refreshAll();
+</script>
+</body>
+</html>
