@@ -52,7 +52,7 @@ def Do(param: Annotated[str, '参数说明']) -> Annotated[dict, '返回说明']
 - 参数用 `Annotated[类型, '描述']`，契约在**装饰时**自动解析
 - 路由名 == 函数名：`@route('/Do')` 配 `def Do`
 - 必须套 `@CheckRequester()` 闸门
-- `return` 注解被跳过，不参与契约
+- **`return` 注解**：`Annotated` 的 return 会进契约（契约含 `return` 键，GET 契约可读到返回值说明）；裸 return 注解被跳过
 - **裸字符串注解**（前向引用）会原样存入契约 type 字段，handler 拿到的是字符串而非类型
 
 ### 5. 依赖取用规范
