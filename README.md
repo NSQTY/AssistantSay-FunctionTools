@@ -90,21 +90,32 @@ System.VerificationLibrary.FunctionHandler
 
 ## 装配到 SERVE 的流程
 
-### 方式 1：clone
+### 方式 1：clone（先克隆整个仓库，再复制插件文件夹——git 不能直接 clone 仓库内的子目录）
 ```bash
 cd your_path/AssistantSay-SERVE/FunctionTools
-git clone <本仓库地址>/<插件名>
+git clone https://github.com/NSQTY/AssistantSay-FunctionTools.git 临时目录
+cp -r 临时目录/<插件名> .
+rm -rf 临时目录
 ```
 
-### 方式 2：复制
+### 方式 2：sparse checkout（只拉取目标插件文件夹，省流量）
+```bash
+cd your_path/AssistantSay-SERVE/FunctionTools
+git clone --depth 1 --filter=blob:none --sparse https://github.com/NSQTY/AssistantSay-FunctionTools.git 临时目录
+git -C 临时目录 sparse-checkout set <插件名>
+cp -r 临时目录/<插件名> .
+rm -rf 临时目录
+```
+
+### 方式 3：复制本地开发目录
 ```bash
 cp -r your_path/AssistantSay-FunctionTools/<插件名> your_path/AssistantSay-SERVE/FunctionTools/
 ```
 
 ### 装配后必须两步
-1. **登记**：在 `SERVE/FunctionTools/__init__.py` 加一行（**唯一允许改动的文件**）
+1. **登记**：在 `SERVE/FunctionTools/__init__.py` 加一行（**唯一允许改动的文件**），把插件的蓝图导出来（以各插件 README 为准）：
    ```python
-   from .<插件名> import <插件名>
+   from .<插件名> import <导出>      # 例: Workspace → from .Workspace import Registration; webui → from .webui import WEBUI
    ```
 2. **重载**：`POST /overload?reason=登记了新插件<插件名>`
 
