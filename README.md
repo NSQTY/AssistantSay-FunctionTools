@@ -68,6 +68,22 @@ System.VerificationLibrary.FunctionHandler
 - **callable 属性：禁止覆盖，抛 TypeError**（保护 Flask Blueprint 内置方法如 route、error_handler）
 - 返回 self（链式调用）
 
+### 7. 依赖声明（尾部强制）
+
+每个插件 README.md 的**最末尾**必须有一节固定标题 `## 依赖声明`，注明本插件装配运行所需的校验库版本：
+
+```
+## 依赖声明
+- 校验库版本：AssistantSay_HANDLER_V1    ← VL 仓库中的处理者文件夹名
+- 或：校验库版本：基座                    ← 仅用默认 FunctionHandler，无分支依赖
+```
+
+规则：
+- 依赖 = 插件代码中**显式引用**的 VL 处理者版本；未引用任何分支 → 写「基座」
+- 声明的版本在 VL 仓库不存在或不完整 → 装配前必须先补齐对应 VL 内容，禁止跳过
+- 声明与实现不符（如引用了 V2 却声明 V1）→ 契约违例
+- 目的：插件包与对应校验库版本一一对应，杜绝装配错位
+
 ---
 
 ## 装配到 SERVE 的流程

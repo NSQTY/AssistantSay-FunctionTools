@@ -30,3 +30,6 @@ from .Workspace import Registration
 - 本插件只登记与改状态；蓝图真实加载发生在启动时，**所有改动重载后生效**
 - 注册表文件 `Works.json` 为运行时生成数据，不入库
 - 插件开发范式与红线见 AssistantSay-FunctionTools 仓库根 README
+
+## 依赖声明
+- 校验库版本：基座（仅默认 FunctionHandler，无分支依赖）
