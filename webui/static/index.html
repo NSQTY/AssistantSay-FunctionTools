@@ -79,7 +79,7 @@
   <div class="tabs">
     <button id="tab-plugin-btn" class="active" onclick="switchTab('plugin')">🧩 插件</button>
     <button id="tab-api-btn" onclick="switchTab('api')">🔌 API 列表</button>
-    <button id="tab-register-btn" onclick="switchTab('register')" style="display:none">📥 工作空间注册</button>
+    <button id="tab-register-btn" onclick="switchTab('register')" style="display:none">🧰 工作空间</button>
   </div>
 
   <div id="pane-plugin" class="tabpane active">
@@ -101,8 +101,8 @@
   </div>
 
   <div id="pane-register" class="tabpane">
-    <div class="card">
-      <div class="card-header">📥 工作空间注册（手动登记第三方插件包 → Workspace 预注册 → 重载生效）</div>
+    <div class="card mb-2">
+      <div class="card-header">📥 登记（RegistrationWorks：手动登记第三方插件包 → 预注册导入测试）</div>
       <div class="card-body">
         <div class="muted mb-2">包契约必备：<code>README.md</code> + <code>requirements.txt</code> + <code>__init__.py</code>（包身份证）+ <code>main.py</code>（蓝图入口，固定名）；目录名 = 包名（合法标识符，建议 == 蓝图名）；子模块/子包任意（相对导入）。</div>
         <div class="input-group mb-2" style="max-width:640px">
@@ -111,6 +111,13 @@
         </div>
         <div id="regResult"></div>
       </div>
+    </div>
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>📋 已登记列表（WorksList · 启停 WorksStatus · 卸载 RemoveWorks —— 均重载后生效）</span>
+        <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()">⟳ 刷新列表</button>
+      </div>
+      <div class="card-body" id="wsConsoleRoot"><span class="muted">加载中…</span></div>
     </div>
   </div>
 
@@ -204,6 +211,7 @@ async function refreshAll() {
   try { state.favs = result(await apiPost('/webui/favorites', {})) || []; } catch (e) { state.favs = []; }
   renderFavBar();
   updateRegTab();
+  renderWsConsole();
   renderPluginManage();
   renderApiList();
 }
@@ -413,7 +421,27 @@ function switchTab(which) {
   if (which === 'api') bindProbes();   // 每次切到 API 列表时重新绑定(内容可能已重建)
 }
 
-// ================= 工作空间注册 tab(Workspace 依赖成立时显示) =================
+// 已登记列表(WorksList)渲染 + 启停/卸载
+function renderWsConsole() {
+  const root = document.getElementById('wsConsoleRoot');
+  if (!root) return;
+  if (state.works === null) { root.innerHTML = '<span class="muted">Workspace 依赖不可达</span>'; return; }
+  const entries = state.works || [];
+  if (!entries.length) { root.innerHTML = '<span class="muted">暂无登记——用上方表单登记插件包，或到 🧩 插件 tab 查看官方插件。</span>'; return; }
+  root.innerHTML = entries.map((w) => {
+    const bns = (w.blueprint_names || []).join(', ') || '<span class="muted">(未回填)</span>';
+    return `<div class="d-flex align-items-center gap-2 border-bottom py-1">
+      <b>${esc(w.WorksPath)}</b>
+      <span class="muted">蓝图: ${bns}</span>
+      ${w.enabled ? '<span class="badge bg-success">启用</span>' : '<span class="badge bg-secondary">关闭</span>'}
+      <span class="ms-auto">
+        ${w.enabled
+          ? `<button class="btn btn-sm btn-outline-danger py-0" onclick="wsToggle('${jsStr(w.WorksPath)}', false)">停用</button>`
+          : `<button class="btn btn-sm btn-outline-success py-0" onclick="wsToggle('${jsStr(w.WorksPath)}', true)">启用</button>`}
+        <button class="btn btn-sm btn-outline-dark py-0 ms-1" onclick="wsUninstall('${jsStr(w.WorksPath)}')">卸载</button>
+      </span></div>`;
+  }).join('');
+}
 function updateRegTab() {
   const avail = state.works !== null;                 // WorksList 可达 = Workspace 依赖成立
   const btn = document.getElementById('tab-register-btn');
