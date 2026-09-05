@@ -153,6 +153,10 @@ const RESERVED_INFO = ['蓝图信息', 'api信息', '自定义信息'];
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+// 嵌入 JS 单引号字符串字面量: HTML 转义 + 反斜杠转义(否则 Windows 路径 \A \C 被 JS 当未知转义吞掉)
+function jsStr(s) {
+  return esc(String(s == null ? '' : s).replace(/\\/g, '\\\\'));
+}
 function flattenGroups(groups, prefix, out) {
   for (const g of groups || []) {
     const label = prefix ? prefix + ' / ' + g.name : g.name;
@@ -283,9 +287,9 @@ function renderPluginManage() {
       <span class="muted">${esc(w.WorksPath)}</span>
       <span class="ms-auto">
         ${w.enabled
-          ? `<button class="btn btn-sm btn-outline-danger py-0" onclick="wsToggle('${esc(w.WorksPath)}', false)">停用</button>`
-          : `<button class="btn btn-sm btn-outline-success py-0" onclick="wsToggle('${esc(w.WorksPath)}', true)">启用</button>`}
-        <button class="btn btn-sm btn-outline-dark py-0 ms-1" onclick="wsUninstall('${esc(w.WorksPath)}')">卸载</button>
+          ? `<button class="btn btn-sm btn-outline-danger py-0" onclick="wsToggle('${jsStr(w.WorksPath)}', false)">停用</button>`
+          : `<button class="btn btn-sm btn-outline-success py-0" onclick="wsToggle('${jsStr(w.WorksPath)}', true)">启用</button>`}
+        <button class="btn btn-sm btn-outline-dark py-0 ms-1" onclick="wsUninstall('${jsStr(w.WorksPath)}')">卸载</button>
       </span></div>`);
   });
   // 2) 官方/系统蓝图(不在任何工作空间条目内): 只读
