@@ -79,6 +79,7 @@
   <div class="tabs">
     <button id="tab-plugin-btn" class="active" onclick="switchTab('plugin')">🧩 插件</button>
     <button id="tab-api-btn" onclick="switchTab('api')">🔌 API 列表</button>
+    <button id="tab-register-btn" onclick="switchTab('register')" style="display:none">📥 工作空间注册</button>
   </div>
 
   <div id="pane-plugin" class="tabpane active">
@@ -95,6 +96,20 @@
         <div class="subtabs" id="bpSubTabs"></div>
         <div id="bpInfo" class="mb-2"></div>
         <div id="apiListRoot"><span class="muted">加载中…</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="pane-register" class="tabpane">
+    <div class="card">
+      <div class="card-header">📥 工作空间注册（手动登记第三方插件包 → Workspace 预注册 → 重载生效）</div>
+      <div class="card-body">
+        <div class="muted mb-2">包契约必备：<code>README.md</code> + <code>requirements.txt</code> + <code>__init__.py</code>（包身份证）+ <code>main.py</code>（蓝图入口，固定名）；目录名 = 包名（合法标识符，建议 == 蓝图名）；子模块/子包任意（相对导入）。</div>
+        <div class="input-group mb-2" style="max-width:640px">
+          <input id="regWorksPath" class="form-control" type="text" placeholder="插件包目录绝对路径, 如 Y:\\MyPlugin" onkeydown="if(event.key==='Enter')registerWorkspace()">
+          <button id="regBtn" class="btn btn-primary" onclick="registerWorkspace()">登记</button>
+        </div>
+        <div id="regResult"></div>
       </div>
     </div>
   </div>
@@ -188,6 +203,7 @@ async function refreshAll() {
   try { state.works = result(await apiPost('/Workspace/WorksList', {})) || []; } catch (e) { state.works = null; }
   try { state.favs = result(await apiPost('/webui/favorites', {})) || []; } catch (e) { state.favs = []; }
   renderFavBar();
+  updateRegTab();
   renderPluginManage();
   renderApiList();
 }
@@ -388,11 +404,35 @@ function switchBp(name) {
 
 // ================= Tab =================
 function switchTab(which) {
-  document.getElementById('tab-plugin-btn').classList.toggle('active', which === 'plugin');
-  document.getElementById('tab-api-btn').classList.toggle('active', which === 'api');
-  document.getElementById('pane-plugin').classList.toggle('active', which === 'plugin');
-  document.getElementById('pane-api').classList.toggle('active', which === 'api');
+  ['plugin', 'api', 'register'].forEach((k) => {
+    const t = document.getElementById('tab-' + k + '-btn');
+    const p = document.getElementById('pane-' + k);
+    if (t) t.classList.toggle('active', k === which);
+    if (p) p.classList.toggle('active', k === which);
+  });
   if (which === 'api') bindProbes();   // 每次切到 API 列表时重新绑定(内容可能已重建)
+}
+
+// ================= 工作空间注册 tab(Workspace 依赖成立时显示) =================
+function updateRegTab() {
+  const avail = state.works !== null;                 // WorksList 可达 = Workspace 依赖成立
+  const btn = document.getElementById('tab-register-btn');
+  if (btn) btn.style.display = avail ? '' : 'none';
+}
+async function registerWorkspace() {
+  const box = document.getElementById('regResult');
+  const input = document.getElementById('regWorksPath');
+  const btn = document.getElementById('regBtn');
+  const path = (input.value || '').trim();
+  if (!path) { box.innerHTML = '<span class="text-danger">请填写插件包目录绝对路径</span>'; return; }
+  box.innerHTML = '<span class="muted">登记中…（README/requirements 校验 + 包式预注册导入测试）</span>';
+  btn.disabled = true;
+  try {
+    const r = await apiPost('/Workspace/RegistrationWorks', { WorksPath: path });
+    box.innerHTML = '<div class="text-success"><b>✓ 预注册通过</b><pre class="mb-1 p-2 bg-light">' + esc(JSON.stringify(r.result, null, 2)) + '</pre><span class="muted">点右上角 ⟳ 重载生效；生效后可到 🧩 插件 tab 启停/卸载。</span></div>';
+  } catch (e) {
+    box.innerHTML = '<span class="text-danger">登记被拒：' + esc(e.message) + '</span>';
+  } finally { btn.disabled = false; }
 }
 
 // ================= 插件 / API 行渲染(共享) =================
