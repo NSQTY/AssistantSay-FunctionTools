@@ -109,15 +109,20 @@ LoadAllWorks()
 
 @Workspace.route('/RegistrationWorks', methods=['POST', 'GET'])
 @CheckRequester()
-def RegistrationWorks(WorksPath: Annotated[str, '第三方插件工作空间目录(须配齐 README.md)'], Module: Annotated[str, '蓝图模块文件名(包内, 如 Workspace.py)']) -> Annotated[dict, '登记结果: 校验必备文件后写入注册表, 重载后生效']:
-    '''登记第三方工作空间: 先校验必备文件(README.md 必写), 通过才写入注册表'''
-    CheckRequiredFiles(WorksPath)             # ← 必备文件校验(结构契约)
+def RegistrationWorks(WorksPath: Annotated[str, '第三方插件工作空间目录(须配齐 README.md)'], Module: Annotated[str, '蓝图模块文件名(包内, 如 Workspace.py)']) -> Annotated[dict, '登记结果: 模块导入测试通过后写入注册表, 重载后生效']:
+    '''登记第三方工作空间: importlib 导入测试——无报错才写入注册表; 有报错 try 捕获返回给请求者'''
+    CheckRequiredFiles(WorksPath)                    # ① 必备文件(README.md)
+    try:
+        LoadBlueprintModule(WorksPath, Module)       # ② 预注册: 现在就导入测试模块(有错即拒, 不留死条目)
+    except Exception as e:
+        raise ValueError(f'预注册失败(模块导入测试): {type(e).__name__}: {e}') from e
+
     works = LoadWorks()
-    entry = {'WorksPath': WorksPath, 'Module': Module, 'enabled': True, 'blueprint_names': []}
+    entry = {'WorksPath': WorksPath, 'Module': Module, 'enabled': True}
     if FindEntry(works, WorksPath) is None:
         works.append(entry)
         SaveWorks(works)
-    return {'registered': entry, 'works_total': len(works), 'effect': '重载后生效'}
+    return {'registered': entry, 'works_total': len(works), 'effect': '预注册通过, 重载后生效'}
 
 
 @Workspace.route('/WorksStatus', methods=['POST', 'GET'])

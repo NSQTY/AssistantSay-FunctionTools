@@ -1,7 +1,7 @@
 # Workspace（工作空间注册插件）
 
 ## 能力定位
-**首个官方插件**（官方插件范式的示范）。为解决插件开发中"复制/clone 插件文件夹 + 改 `__init__.py` 登记行"的频繁手工流程而生：有了它，外部化插件注册只需走 API——登记插件目录 → README 必备校验 → 写入注册表 → 重载后由系统启动时自动装配，**无需改动 SERVE 骨架任何一个字节**。
+**首个官方插件**（官方插件范式的示范）。为解决插件开发中"复制/clone 插件文件夹 + 改 `__init__.py` 登记行"的频繁手工流程而生：有了它，外部化插件注册只需走 API——登记插件目录 → README 必备校验 + **模块导入测试（预注册）** → 通过才写入注册表 → 重载后由系统启动时自动装配，**无需改动 SERVE 骨架任何一个字节**。
 
 ## 功能
 登记第三方插件工作空间：把外化开发的插件（含 README.md 的独立目录）登记进注册表 `Works.json`，重载后由系统在**启动时**（LoadAllWorks）加载其蓝图模块。启动后请求只负责登记/状态/移除——Flask 在第一次请求后冻结，运行期不能注册新蓝图。
@@ -19,7 +19,7 @@ from .Workspace import Registration
 
 | 方法 | 路径 | 参数 | 说明 |
 |---|---|---|---|
-| POST/GET | `/Workspace/RegistrationWorks` | `WorksPath: str` 第三方插件目录<br>`Module: str` 蓝图模块文件名（目录内，如 `Workspace.py`） | 登记：校验目录存在且必备文件齐全 → 写入注册表。返回 `{registered, works_total, effect: 重载后生效}` |
+| POST/GET | `/Workspace/RegistrationWorks` | `WorksPath: str` 第三方插件目录<br>`Module: str` 蓝图模块文件名（目录内，如 `Workspace.py`） | 登记：README 必备 + **模块导入测试（预注册，try 捕获，有错即拒，不留死条目）** → 通过才写注册表。返回 `{registered, works_total, effect: 预注册通过, 重载后生效}` |
 | POST/GET | `/Workspace/WorksStatus` | `WorksPath: str`<br>`Enabled: bool`（必须布尔） | 启用/关闭。未登记或类型错 → 抛错 |
 | POST/GET | `/Workspace/RemoveWorks` | `WorksPath: str` | 移除登记。未登记 → 抛错 |
 | POST/GET | `/Workspace/WorksList` | — | 查看注册表全部条目（路径/模块/启用状态） |
