@@ -141,6 +141,41 @@ cp -r your_path/AssistantSay-FunctionTools/<插件名> your_path/AssistantSay-SE
 
 ---
 
+## 能力复用与禁止重叠（API/蓝图 = 一等公民）
+
+本系统是 **API 驱动的声明式插件系统**：能力只在运行态经 API 暴露与消费；蓝图与 API 是一等公民，**禁止蓝图重名、禁止重复造可能与已有 API 重叠的插件代码**（避免能力分叉，省磁盘与维护）。
+
+**开发外部插件的第一优先级：先查系统有没有现成 API 可用——**
+- 运行态：`GET /` + `GET /Documentation/get_blueprints` + `POST /Documentation/get_blueprint_routes`（蓝图=插件、函数=工具）
+- 开发态：本仓库（官方插件）与 [AssistantSay-VerificationLibrary](https://github.com/NSQTY/AssistantSay-VerificationLibrary)（校验库）的 README
+
+**复用（两种形态都允许）**：
+1. **透传**：调用现成 API，原封不动返回其 `result`；
+2. **封装**：调用现成 API（作为底层），在其 `result` 之上二次解析/加工。
+
+**调用通道（文档约定）**：插件路由函数内调用系统内现成 API 用 `requests.post`，基址取 `request.host_url`（不写死地址）：
+```python
+import requests, System
+
+def call_api(path: str, payload: dict):
+    base = System.flask.request.host_url.rstrip('/')
+    r = requests.post(base + path, json=payload, timeout=10)
+    r.raise_for_status()
+    return r.json()                    # 统一信封 {"result": ...} / {"error": ...}
+```
+然后：
+```python
+data = call_api('/Workspace/WorksList', {})
+return data['result']                  # ① 透传 result
+# 或 result 二次加工: parsed = [w for w in data['result'] if w.get('enabled')]
+```
+
+**禁止**：从零重写系统已有的底层能力（会与已有 API 重叠、分叉能力）。
+
+**重叠的机械保证**：蓝图重名只可能来自外部插件（官方内部受控）——**Workspace 登记时预注册检测**：模块未创建任何新蓝图（名已被官方/其他工作空间占用）即拒绝登记。
+
+---
+
 ## Clone 官方插件的注意事项
 
 1. **唯一获取源**：本仓库是官方唯一来源，避免多源分叉、版本混乱

@@ -19,7 +19,7 @@ from .Workspace import Registration
 
 | 方法 | 路径 | 参数 | 说明 |
 |---|---|---|---|
-| POST/GET | `/Workspace/RegistrationWorks` | `WorksPath: str` 第三方插件目录<br>`Module: str` 蓝图模块文件名（目录内，如 `Workspace.py`） | 登记：README 必备 + **模块导入测试（预注册，try 捕获，有错即拒，不留死条目）** → 通过才写注册表。返回 `{registered, works_total, effect: 预注册通过, 重载后生效}` |
+| POST/GET | `/Workspace/RegistrationWorks` | `WorksPath: str` 第三方插件目录<br>`Module: str` 蓝图模块文件名（目录内，如 `Workspace.py`） | 登记：README 必备 + **模块导入测试（预注册）** + **蓝图重名拒绝（未创建新蓝图即拒）** → 通过才写注册表。返回 `{registered, works_total, effect: 预注册通过, 重载后生效}` |
 | POST/GET | `/Workspace/WorksStatus` | `WorksPath: str`<br>`Enabled: bool`（必须布尔） | 启用/关闭。未登记或类型错 → 抛错 |
 | POST/GET | `/Workspace/RemoveWorks` | `WorksPath: str` | 移除登记。未登记 → 抛错 |
 | POST/GET | `/Workspace/WorksList` | — | 查看注册表全部条目（路径/模块/启用状态） |

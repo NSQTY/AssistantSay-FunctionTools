@@ -113,18 +113,24 @@ def RegistrationWorks(WorksPath: Annotated[str, '第三方插件工作空间目�
     '''登记第三方工作空间: importlib 导入测试——无报错才写入注册表; 有报错 try 捕获返回给请求者'''
     CheckRequiredFiles(WorksPath)                    # ① 必备文件(README.md)
     before = _blueprint_names()
+    after = set()
     try:
         try:
             LoadBlueprintModule(WorksPath, Module)   # ② 预注册: 现在就导入测试模块(有错即拒, 不留死条目)
         except Exception as e:
             raise ValueError(f'预注册失败(模块导入测试): {type(e).__name__}: {e}') from e
+        after = _blueprint_names()
     finally:
         # ③ 清理: 摘掉试加载挂上的蓝图(仅内存导入测试; 真实加载在重载后由 LoadAllWorks 做)
-        for name in sorted(_blueprint_names() - before):
+        for name in sorted(after - before):
             try:
                 delattr(AR, name)
             except AttributeError:
                 pass
+    created = sorted(after - before)
+    if not created:
+        # ④ 禁止蓝图重叠: 模块未创建任何新蓝图 = 蓝图名已被已有蓝图(官方/其他工作空间)占用(CBP 缓存吞掉)或未建蓝图
+        raise ValueError('预注册失败: 模块未创建任何新蓝图——蓝图名可能与已存在蓝图重叠(官方或其他工作空间), 或未在模块级建蓝图')
 
     works = LoadWorks()
     entry = {'WorksPath': WorksPath, 'Module': Module, 'enabled': True}
