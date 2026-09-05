@@ -19,15 +19,27 @@ from .Workspace import Registration
 
 | 方法 | 路径 | 参数 | 说明 |
 |---|---|---|---|
-| POST/GET | `/Workspace/RegistrationWorks` | `WorksPath: str` 第三方插件目录<br>`Module: str` 蓝图模块文件名（目录内，如 `Workspace.py`） | 登记：README 必备 + **模块导入测试（预注册）** + **蓝图重名拒绝（未创建新蓝图即拒）** → 通过才写注册表。返回 `{registered, works_total, effect: 预注册通过, 重载后生效}` |
+| POST/GET | `/Workspace/RegistrationWorks` | `WorksPath: str` 第三方插件包目录（包契约见下） | 登记：包契约必备文件校验 + **包式预注册导入测试**（入口固定 `main.py`，有错即拒） + **蓝图重名拒绝**（未创建新蓝图即拒） → 通过才写注册表。返回 `{registered, works_total, effect: 预注册通过, 重载后生效}` |
 | POST/GET | `/Workspace/WorksStatus` | `WorksPath: str`<br>`Enabled: bool`（必须布尔） | 启用/关闭。未登记或类型错 → 抛错 |
 | POST/GET | `/Workspace/RemoveWorks` | `WorksPath: str` | 移除登记。未登记 → 抛错 |
 | POST/GET | `/Workspace/WorksList` | — | 查看注册表全部条目（路径/模块/启用状态） |
 
-## 结构契约（登记第三方工作空间时的强制校验）
-- **必备文件：README.md**（功能/API/参数/边界）——不齐拒绝登记
-- 蓝图模块：目录内一个 Python 模块，模块级 `AR.CBP.<名>.ModifyConfiguration(...)` 建蓝图（蓝图即属性，名字合一）
-- 第三方插件其余结构自由
+## 结构契约（第三方插件 = Python 包，登记时强制校验）
+
+```
+MyPlugin/                     ← 插件包(你的目录, 绝不进 SERVE; 目录名=包名, 须为合法 Python 标识符)
+├── README.md                 ← 必备: 功能/API/参数/边界
+├── requirements.txt          ← 必备: Python 第三方依赖声明(pip 格式, 无依赖可为空; 不自动安装)
+├── __init__.py               ← 包身份证(可为空注释): 目录即包, main.py 才能相对导入子模块
+├── main.py                   ← 蓝图入口(固定名! 模块级 AR.CBP.<名>.ModifyConfiguration(...) 建蓝图)
+├── helpers/ ...              ← 子包/子模块 任意嵌套(main.py 内 from .helpers import x 相对导入)
+└── static/ data/ ...         ← 资源/数据(Path(__file__).resolve().parent 绝对定位, 运行时自管)
+```
+
+- 登记只需 `WorksPath`（入口文件名固定为 `main.py`，无需再指定模块）
+- Workspace 加载方式 = **包式加载**：先把包 `__init__.py` 注册进 sys.modules（获得 `__path__`），再把 `main.py` 作为包的子模块加载 → `main.py` 内相对导入天然可用
+- 预注册导入测试会连带验证子模块/子包；缺第三方库 → `ModuleNotFoundError` 当场被拦（提示补 requirements.txt 并安装）
+- 蓝图重名：模块未创建任何新蓝图（名被官方/其他工作空间占用，或 main.py 未建蓝图）→ 拒绝登记
 
 ## 边界与红线
 - 本插件只登记与改状态；蓝图真实加载发生在启动时，**所有改动重载后生效**

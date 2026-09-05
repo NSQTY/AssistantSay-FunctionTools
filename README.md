@@ -130,10 +130,10 @@ cp -r your_path/AssistantSay-FunctionTools/<插件名> your_path/AssistantSay-SE
 
 ### B. 第三方外部注册（唯一通道：Workspace API）
 
-第三方插件**留在自己的目录**（绝不放进 SERVE），经 Workspace 插件 API 登记：
+第三方插件 = **Python 包**（留在自己的目录，绝不放进 SERVE），经 Workspace 插件 API 登记：
 
-1. 目录必须含 `README.md`；蓝图模块需能通过 import（Workspace 登记时做**预注册导入测试**，有错即拒）
-2. `POST /Workspace/RegistrationWorks` `{WorksPath, Module}` → 通过才写入注册表
+1. 包契约必备：`README.md` + `requirements.txt`（依赖声明，无依赖可为空）+ `__init__.py`（包身份证）+ `main.py`（蓝图入口，**固定名**）；子包/子模块/资源任意，`main.py` 内相对导入
+2. `POST /Workspace/RegistrationWorks` `{WorksPath}`（**入口固定 main.py，无需指定模块**）→ 包式预注册导入测试 + 蓝图重名检查 → 通过才写注册表
 3. `POST /overload?reason=登记了插件X` → 启动时自动装配生效
 4. 启停：`POST /Workspace/WorksStatus`；卸载：`POST /Workspace/RemoveWorks`（卸载后需重新登记才恢复）
 
