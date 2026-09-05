@@ -88,9 +88,16 @@ System.VerificationLibrary.FunctionHandler
 
 ---
 
-## 装配到 SERVE 的流程
+## 装配到 SERVE 的流程（分角色）
 
-### 方式 1：clone（先克隆整个仓库，再复制插件文件夹——git 不能直接 clone 仓库内的子目录）
+> 角色：**官方** = SERVE 仓库维护者（唯一有装配权）；**第三方开发者（含 Agent）** = clone 后自己开发插件的人，**禁止触碰 SERVE 任何文件**——连 `__init__` 都不能动、连 copy 进 SERVE 都不允许，只能经 Workspace API 外部化注册。消费者 = clone 后运行使用（只读/运行）。
+> 装配动作分两类：**A. 官方装配**（官方插件 / 官方发布流程）与 **B. 第三方外部注册**（唯一通道 = Workspace API）。
+
+### A. 官方装配（仅官方 / 官方发布流程；消费者执行官方给出的安装步骤不算私自修改）
+
+把官方插件（本仓库内的 Workspace / webui 等）放入 SERVE：
+
+**方式 1：clone（先克隆整个仓库，再复制插件文件夹——git 不能直接 clone 仓库内的子目录）**
 ```bash
 cd your_path/AssistantSay-SERVE/FunctionTools
 git clone https://github.com/NSQTY/AssistantSay-FunctionTools.git 临时目录
@@ -98,7 +105,7 @@ cp -r 临时目录/<插件名> .
 rm -rf 临时目录
 ```
 
-### 方式 2：sparse checkout（只拉取目标插件文件夹，省流量）
+**方式 2：sparse checkout（只拉取目标插件文件夹，省流量）**
 ```bash
 cd your_path/AssistantSay-SERVE/FunctionTools
 git clone --depth 1 --filter=blob:none --sparse https://github.com/NSQTY/AssistantSay-FunctionTools.git 临时目录
@@ -107,19 +114,30 @@ cp -r 临时目录/<插件名> .
 rm -rf 临时目录
 ```
 
-### 方式 3：复制本地开发目录
+**方式 3：复制本地开发目录**
 ```bash
 cp -r your_path/AssistantSay-FunctionTools/<插件名> your_path/AssistantSay-SERVE/FunctionTools/
 ```
 
-### 装配后必须两步
-1. **登记**：在 `SERVE/FunctionTools/__init__.py` 加一行（**唯一允许改动的文件**），把插件的蓝图导出来（以各插件 README 为准）：
+**装配后必须两步（官方动作）**：
+1. **登记**：在 `SERVE/FunctionTools/__init__.py` 加一行，把插件的蓝图导出来（以各插件 README 为准）：
    ```python
    from .<插件名> import <导出>      # 例: Workspace → from .Workspace import Registration; webui → from .webui import WEBUI
    ```
 2. **重载**：`POST /overload?reason=登记了新插件<插件名>`
 
-> ⚠️ 禁止修改 `__init__.py` 以外的任何文件，禁止在 SERVE 内部创建新文件。
+> ⚠️ 官方装配也禁止修改 `__init__.py` 以外的任何文件、禁止在 SERVE 内部创建其它文件。
+
+### B. 第三方外部注册（唯一通道：Workspace API）
+
+第三方插件**留在自己的目录**（绝不放进 SERVE），经 Workspace 插件 API 登记：
+
+1. 目录必须含 `README.md`；蓝图模块需能通过 import（Workspace 登记时做**预注册导入测试**，有错即拒）
+2. `POST /Workspace/RegistrationWorks` `{WorksPath, Module}` → 通过才写入注册表
+3. `POST /overload?reason=登记了插件X` → 启动时自动装配生效
+4. 启停：`POST /Workspace/WorksStatus`；卸载：`POST /Workspace/RemoveWorks`（卸载后需重新登记才恢复）
+
+> 🔴 **第三方红线**：禁止 copy/clone 插件进 SERVE、禁止改 `FunctionTools/__init__.py`、禁止在 SERVE 内创建任何文件——一切只经 Workspace API。
 
 ---
 

@@ -112,10 +112,19 @@ LoadAllWorks()
 def RegistrationWorks(WorksPath: Annotated[str, '第三方插件工作空间目录(须配齐 README.md)'], Module: Annotated[str, '蓝图模块文件名(包内, 如 Workspace.py)']) -> Annotated[dict, '登记结果: 模块导入测试通过后写入注册表, 重载后生效']:
     '''登记第三方工作空间: importlib 导入测试——无报错才写入注册表; 有报错 try 捕获返回给请求者'''
     CheckRequiredFiles(WorksPath)                    # ① 必备文件(README.md)
+    before = _blueprint_names()
     try:
-        LoadBlueprintModule(WorksPath, Module)       # ② 预注册: 现在就导入测试模块(有错即拒, 不留死条目)
-    except Exception as e:
-        raise ValueError(f'预注册失败(模块导入测试): {type(e).__name__}: {e}') from e
+        try:
+            LoadBlueprintModule(WorksPath, Module)   # ② 预注册: 现在就导入测试模块(有错即拒, 不留死条目)
+        except Exception as e:
+            raise ValueError(f'预注册失败(模块导入测试): {type(e).__name__}: {e}') from e
+    finally:
+        # ③ 清理: 摘掉试加载挂上的蓝图(仅内存导入测试; 真实加载在重载后由 LoadAllWorks 做)
+        for name in sorted(_blueprint_names() - before):
+            try:
+                delattr(AR, name)
+            except AttributeError:
+                pass
 
     works = LoadWorks()
     entry = {'WorksPath': WorksPath, 'Module': Module, 'enabled': True}

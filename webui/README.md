@@ -32,7 +32,7 @@
 收藏数据持久化在插件包内 `webui.json`（运行时数据，不入库；嵌套组结构 `{id,name,groups,items}`）。
 
 ## 装配方式
-官方插件（属于 AssistantSay-FunctionTools 仓库）。按仓库根 README 流程：把本文件夹内容放进 `SERVE/FunctionTools/webui/`（webui.py + static/），在 `SERVE/FunctionTools/__init__.py` 登记一行：
+官方插件（属于 AssistantSay-FunctionTools 仓库）——**官方装配动作**（第三方不得自行 copy/改 init，只能经 Workspace API 登记自己的外部插件）。按仓库根 README 的官方装配流程：把本文件夹内容放进 `SERVE/FunctionTools/webui/`（webui.py + static/），在 `SERVE/FunctionTools/__init__.py` 登记一行：
 
 ```python
 from .webui import WEBUI

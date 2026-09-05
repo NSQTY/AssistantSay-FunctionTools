@@ -1,13 +1,13 @@
 # Workspace（工作空间注册插件）
 
 ## 能力定位
-**首个官方插件**（官方插件范式的示范）。为解决插件开发中"复制/clone 插件文件夹 + 改 `__init__.py` 登记行"的频繁手工流程而生：有了它，外部化插件注册只需走 API——登记插件目录 → README 必备校验 + **模块导入测试（预注册）** → 通过才写入注册表 → 重载后由系统启动时自动装配，**无需改动 SERVE 骨架任何一个字节**。
+**首个官方插件**（官方插件范式的示范），也是**第三方注册的唯一通道**——SERVE 对第三方只此一条外部化通道：clone 项目后必须先经官方装配动作安装本插件，否则第三方无法注册任何插件。为解决插件开发中"复制/clone 插件文件夹 + 改 `__init__.py` 登记行"的频繁手工流程而生：有了它，外部化插件注册只需走 API——登记插件目录 → README 必备校验 + **模块导入测试（预注册）** → 通过才写入注册表 → 重载后由系统启动时自动装配，**无需改动 SERVE 骨架任何一个字节**。
 
 ## 功能
 登记第三方插件工作空间：把外化开发的插件（含 README.md 的独立目录）登记进注册表 `Works.json`，重载后由系统在**启动时**（LoadAllWorks）加载其蓝图模块。启动后请求只负责登记/状态/移除——Flask 在第一次请求后冻结，运行期不能注册新蓝图。
 
 ## 装配方式
-官方插件（属于 AssistantSay-FunctionTools 仓库）。按仓库根 README 流程：把本文件夹 clone/copy 进 `SERVE/FunctionTools/`，在 `SERVE/FunctionTools/__init__.py` 登记一行：
+官方插件（属于 AssistantSay-FunctionTools 仓库）——**官方装配动作**（消费者执行官方安装步骤时允许；第三方不得自行 copy/改 init）。按仓库根 README 流程：把本文件夹 clone/copy 进 `SERVE/FunctionTools/`，在 `SERVE/FunctionTools/__init__.py` 登记一行：
 
 ```python
 from .Workspace import Registration
