@@ -105,8 +105,9 @@
       <div class="card-header">📥 登记（RegistrationWorks：手动登记第三方插件包 → 预注册导入测试）</div>
       <div class="card-body">
         <div class="muted mb-2">包契约必备：<code>README.md</code> + <code>requirements.txt</code> + <code>__init__.py</code>（包身份证）+ <code>main.py</code>（蓝图入口，固定名）；目录名 = 包名（合法标识符，建议 == 蓝图名）；子模块/子包任意（相对导入）。</div>
-        <div class="input-group mb-2" style="max-width:640px">
-          <input id="regWorksPath" class="form-control" type="text" placeholder="插件包目录绝对路径, 如 Y:\\MyPlugin" onkeydown="if(event.key==='Enter')registerWorkspace()">
+        <div class="input-group mb-2" style="max-width:720px">
+          <input id="regWorksPath" class="form-control" type="text" readonly placeholder="点击「📂 选择目录」浏览服务器文件夹" onclick="openBrowse()">
+          <button class="btn btn-outline-secondary" onclick="openBrowse()">📂 选择目录</button>
           <button id="regBtn" class="btn btn-primary" onclick="registerWorkspace()">登记</button>
         </div>
         <div id="regResult"></div>
@@ -132,6 +133,23 @@
     <div class="dlg-foot">
       <button class="btn btn-sm btn-outline-primary" onclick="addTopGroup()">+ 新建顶层组</button>
       <button class="btn btn-sm btn-outline-secondary" onclick="closeFavManage()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 文件夹选择器模态框(登记插件包用, 不手填路径) -->
+<div id="browseOvl" class="ovl" onclick="if (event.target === this) closeBrowse()">
+  <div class="dlg" style="max-width:640px">
+    <div class="dlg-head"><b>📂 选择插件包目录</b>
+      <button class="btn btn-sm btn-outline-secondary" onclick="closeBrowse()">✕</button></div>
+    <div class="dlg-body">
+      <div id="browsePath" class="muted mb-1"></div>
+      <div id="browseBody" style="max-height:45vh; overflow:auto"></div>
+    </div>
+    <div class="dlg-foot">
+      <button class="btn btn-sm btn-outline-secondary" onclick="browseUp()">⬆ 上级/盘符</button>
+      <button class="btn btn-sm btn-primary" onclick="chooseBrowse()">✓ 选择此目录</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="closeBrowse()">取消</button>
     </div>
   </div>
 </div>
@@ -457,10 +475,52 @@ async function registerWorkspace() {
   btn.disabled = true;
   try {
     const r = await apiPost('/Workspace/RegistrationWorks', { WorksPath: path });
-    box.innerHTML = '<div class="text-success"><b>✓ 预注册通过</b><pre class="mb-1 p-2 bg-light">' + esc(JSON.stringify(r.result, null, 2)) + '</pre><span class="muted">点右上角 ⟳ 重载生效；生效后可到 🧩 插件 tab 启停/卸载。</span></div>';
+    box.innerHTML = '<div class="text-success"><b>✓ 预注册通过</b><pre class="mb-1 p-2 bg-light">' + esc(JSON.stringify(r.result, null, 2)) + '</pre><span class="muted">点右上角 ⟳ 重载生效；生效后可到 🧰 工作空间/🧩 插件 tab 启停/卸载。</span></div>';
+    refreshAll();
   } catch (e) {
     box.innerHTML = '<span class="text-danger">登记被拒：' + esc(e.message) + '</span>';
   } finally { btn.disabled = false; }
+}
+
+// ================= 文件夹选择器(浏览服务器目录) =================
+let browseState = { path: '', parent: null, is_root: true };
+function openBrowse() {
+  document.getElementById('browseOvl').style.display = 'flex';
+  browseGo(browseState.path || null);
+}
+function closeBrowse() { document.getElementById('browseOvl').style.display = 'none'; }
+async function browseGo(path) {
+  try {
+    const r = await apiPost('/Workspace/browse', path ? { path } : {});
+    const d = r.result;
+    browseState = { path: d.path, parent: d.parent, is_root: d.is_root };
+    document.getElementById('browsePath').textContent = d.is_root ? '（请选择盘符）' : d.path;
+    let rows = '';
+    (d.drives || []).forEach((dr) => {
+      rows += `<div class="d-flex align-items-center border-bottom py-1" style="cursor:pointer" onclick="browseGo('${jsStr(dr)}')">💽 ${esc(dr)}</div>`;
+    });
+    (d.dirs || []).forEach((name) => {
+      const child = d.path + (d.path.endsWith('\\') || d.path.endsWith('/') ? '' : '\\') + name;
+      rows += `<div class="d-flex align-items-center border-bottom py-1" style="cursor:pointer" onclick="browseGo('${jsStr(child)}')">
+        <span class="me-auto">📁 ${esc(name)}</span>
+        <button class="btn btn-sm btn-outline-primary py-0" onclick="event.stopPropagation(); pickBrowse('${jsStr(child)}')">选择</button></div>`;
+    });
+    document.getElementById('browseBody').innerHTML = rows || '<span class="muted">（空目录）</span>';
+  } catch (e) {
+    document.getElementById('browseBody').innerHTML = '<span class="text-danger">' + esc(e.message) + '</span>';
+  }
+}
+function browseUp() {
+  if (!browseState.path) return;
+  if (browseState.parent) browseGo(browseState.parent); else browseGo(null);
+}
+function pickBrowse(path) {
+  document.getElementById('regWorksPath').value = path;
+  closeBrowse();
+}
+function chooseBrowse() {
+  if (browseState.is_root || !browseState.path) { alert('请先进入一个目录（或点行的「选择」）'); return; }
+  pickBrowse(browseState.path);
 }
 
 // ================= 插件 / API 行渲染(共享) =================

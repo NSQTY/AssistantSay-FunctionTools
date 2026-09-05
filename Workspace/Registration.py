@@ -13,6 +13,7 @@
 
 from pathlib import Path
 import json
+import os
 import re
 import sys
 import importlib.util
@@ -213,3 +214,30 @@ def RemoveWorks(WorksPath: Annotated[str, '第三方插件包目录']) -> Annota
 def WorksList() -> Annotated[list, '当前注册表全部工作空间及状态']:
     '''查看注册表: 所有工作空间的 路径/蓝图/启用状态'''
     return LoadWorks()
+
+
+# ---------- 服务器目录浏览(通用: 登记/任何 UI 挑选插件包目录用, 只列目录名不读内容) ----------
+
+def _is_drive_root(path: str) -> bool:
+    return len(path) >= 2 and path[1] == ':' and (len(path) == 2 or path[2] in '\\/')
+
+
+def _list_drives() -> list:
+    try:
+        return sorted(os.listdrives())
+    except AttributeError:
+        return [f'{c}:\\' for c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' if Path(f'{c}:\\').exists()]
+
+
+@Workspace.route('/browse', methods=['POST', 'GET'])
+@CheckRequester()
+def browse(path: Annotated[str, '要浏览的目录(留空=盘符列表)'] = None) -> Annotated[dict, '目录浏览结果: {path, parent, drives, dirs}']:
+    """服务器目录浏览(通用 API): 列盘符/子目录名, 供登记/文件夹选择器挑选插件包目录(服务器可读的绝对路径)"""
+    if not path:
+        return {'path': '', 'parent': None, 'is_root': True, 'drives': _list_drives(), 'dirs': []}
+    p = Path(path)
+    if not p.is_absolute() or not p.exists() or not p.is_dir():
+        raise ValueError(f'不是有效目录: {path}')
+    dirs = sorted((d.name for d in p.iterdir() if d.is_dir()), key=str.lower)
+    parent = None if _is_drive_root(str(p)) else str(p.parent)
+    return {'path': str(p), 'parent': parent, 'is_root': False, 'drives': [], 'dirs': dirs}
