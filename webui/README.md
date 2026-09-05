@@ -38,15 +38,15 @@
 from .webui import WEBUI
 ```
 
-**前置依赖**：需先装配校验库分支 `AssistantSay_HANDLER_V2`（VL 仓库 → `SERVE/VerificationLibrary/AssistantSay_HANDLER_V2/`，禁止急切再导出，由本插件显式引入）。
+**前置依赖**：需先装配校验库分支 `AssistantSay_HANDLER_V1`（页面）与 `AssistantSay_HANDLER_V2`（信息型）——VL 仓库 → `SERVE/VerificationLibrary/AssistantSay_HANDLER_V1/`、`.../AssistantSay_HANDLER_V2/`（官方挂载；禁止急切再导出，由本插件显式引入）。
 
 然后 `POST /overload?reason=装配了webui看板`，浏览器打开 `/webui/home`。
 
 ## 边界与红线
 - 看板数据全部走公开 API；页面/静态资源在本插件包内（static/ 绝对路径定位）
-- 页面首页 home 当前用基座派生就地 `Page` 子类（页面语义原型）；API 用 V2 信息型；页面语义稳定后统一收编 VL 页面分支
+- 校验器一律来自 VL 官方家族（不自造）：首页 home = V1 页面分支；API = V2 信息型
 - 插件开发范式与红线见 AssistantSay-FunctionTools 仓库根 README
 
 ## 依赖声明
-- 校验库版本：基座 `FunctionHandler`（页面 home 的就地 Page 子类，原型期）
+- 校验库版本：`AssistantSay_HANDLER_V1`（页面：首页 home 渲染 static HTML）
 - 校验库版本：`AssistantSay_HANDLER_V2`（收藏/API 用 V2 信息型，随 GET 自证 蓝图信息/api信息/自定义信息）

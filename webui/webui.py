@@ -17,7 +17,9 @@ import System
 
 AR = System.FlaskApp.AR
 CheckRequester = System.RouteInterception.CheckRequester
-# V2 信息型校验器(官方 VL 分支, 已挂载): 初始化传参声明 蓝图/api/自定义 信息, GET 自证
+# 校验器一律来自 VL 官方家族(不自造):
+#   V1 页面分支(首页渲染 static HTML) / V2 信息型(API 随 GET 自证蓝图信息·api信息·自定义信息)
+from VerificationLibrary.AssistantSay_HANDLER_V1 import Handler as PageHandler
 from VerificationLibrary.AssistantSay_HANDLER_V2 import Handler as InfoHandler
 
 # 收藏夹数据文件(运行时数据, 插件包内, 不入库)
@@ -63,31 +65,17 @@ def remove_group(groups: list, gid: str) -> bool:
     return False
 
 
-# ---------- 页面处理器(原型期就地子类; 稳定后升 VL 分支) ----------
-
-class Page(System.VerificationLibrary.FunctionHandler):
-    """看板页处理器: GET 渲染 static/index.html(浏览器端采集数据), 不执行函数"""
-
-    def GET_dispatch(self, request, contract: dict, func):
-        page = Path(__file__).resolve().parent / 'static' / 'index.html'
-        if not page.exists():
-            raise FileNotFoundError(f'看板页不存在: {page}')
-        return page.read_text(encoding='utf-8')
-
-    def GET_render(self, request, data):
-        import System as _s
-        return _s.flask.Response(data, content_type='text/html; charset=utf-8')
-
-
-# 名字合一: 蓝图名(webui) == url_prefix(/webui); 蓝图级信息挂蓝图(普通属性, V2 自动回退读取)
+# 名字合一: 蓝图名(webui) == url_prefix(/webui); static_folder 必须绝对路径(VL 页面契约);
+# 蓝图级信息挂蓝图(普通属性, V2 自动回退读取)
 WEBUI = AR.CBP.webui.ModifyConfiguration(
     url_prefix='/webui',
+    static_folder=str(Path(__file__).resolve().parent / 'static'),
     蓝图信息={'能力': '系统看板', '来源': '官方插件', '说明': '插件/API 目录 + 契约 + 调试 + 收藏夹'},
 )
 
 
 @WEBUI.route('/home', methods=['GET'])
-@CheckRequester(handler=Page())
+@CheckRequester(handler=PageHandler())       # V1 页面分支: GET 渲染 static/index.html
 def home():
     """看板页入口: 仅 GET(浏览器打开 /webui/home); POST 由闸门拒绝"""
     return ''
